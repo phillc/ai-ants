@@ -1,8 +1,6 @@
 *.hi
 *.o
-*.py
 *.zip
-*.txt
-MyBot
+*.swp
 tags
 test
