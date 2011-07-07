@@ -8,6 +8,7 @@ module Ants
   , GameParams (..)
   , GameState (..)
   , Order (..)
+  , Point (..)
   , World
 
     -- Utility functions
@@ -199,7 +200,7 @@ data Owner = Me | Enemy Int deriving (Show,Eq)
 data Ant = Ant
   { point :: Point
   , owner :: Owner
-  } deriving (Show)
+  } deriving (Show, Eq)
 
 isMe, isEnemy :: Ant -> Bool
 isMe = (==Me).owner

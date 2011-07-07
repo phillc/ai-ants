@@ -2,46 +2,80 @@ module Main where
 
 import Data.List
 import Data.Maybe (mapMaybe)
+import Data.Ord (comparing)
 import System.IO
 
-import Ants
+import qualified Ants
+import Ants hiding (world, ants, food)
 
-validOrders :: World -> [Order] -> [Order]
-validOrders w = filter (passable w)
+class Turn a where
+  world :: a -> World
+  ants :: a -> [Ant]
+  food :: a -> [Food]
 
-generateOrders :: Ant -> [Order]
-generateOrders a = map (Order a) [North .. West]
+data Future = Future
+  { fworld :: World
+  , fants :: [Ant]
+  , ffood :: [Food]
+  , forders :: [Order]
+  } deriving (Show)
 
--- tmpDist :: (Order, Food) -> Int
--- tmpDist order food = move (direction order) (point $ ant order)
+instance Turn Future where
+  world = fworld
+  ants = fants
+  food = ffood
 
-distanceToFood :: GameParams -> (Order, Food) -> (Order, Food) -> Ordering
-distanceToFood gp (order1, food1) (order2, food2) =
-  let location1 = move (direction order1) (point $ ant order1)
-      location2 = move (direction order2) (point $ ant order2)
-      distance1 = distance gp location1 food1
-      distance2 = distance gp location2 food2
-  in distance1 `compare` distance2
+instance Turn GameState where
+  world = Ants.world
+  ants = Ants.ants
+  food = Ants.food
 
-firstPerAnt :: [(Order, Food)] -> [Order]
-firstPerAnt [] = []
-firstPerAnt (combo:combos) = [fst combo]
+simulateOrder :: Order -> Point
+simulateOrder order = move (direction order) (point $ ant order)
 
-combos :: World -> [Ant] -> [Food] -> [(Order, Food)]
-combos _ [] _ = []
-combos world (ant:ants) foods = 
-  let orders = validOrders world $ generateOrders ant
-  in [(x, y) | x <- orders, y <- foods] ++ (combos world ants foods)
+applyOrders :: [Ant] -> [Order] -> [Ant]
+applyOrders ants [] = ants
+applyOrders ants (order:orders) = 
+  let newAnt = Ant (simulateOrder order) (owner $ ant order)
+      otherAnts = filter (/= (ant order)) ants
+  in [newAnt] ++ (applyOrders otherAnts orders)
+
+createFuture :: (Turn a) => a -> [Order] -> Future
+createFuture turn orders =
+  let newAnts = applyOrders (ants turn) orders
+  in Future { fworld = world turn
+            , forders = orders
+            , fants = newAnts
+            , ffood = food turn
+            }
+
+circularStrategy :: (Turn a) => [Direction] -> a -> Future
+circularStrategy directions turn =
+  let myAnts' = myAnts $ ants turn
+      generatedOrders = map (\ant -> map (Order ant) directions) myAnts'
+      orders = head $ map (filter (passable $ world turn)) generatedOrders
+  in createFuture turn orders
+
+clockwiseStrategy :: (Turn a) => a -> Future
+clockwiseStrategy = circularStrategy [North .. West]
+
+counterClockwiseStrategy :: (Turn a) => a -> Future
+counterClockwiseStrategy = circularStrategy [West .. North]
+
+evaluate :: (Turn a) => GameParams -> a -> Int
+evaluate gp turn =
+  let ants' = ants turn
+      foods = food turn
+      numAnts = length ants'
+      sumDistances = foldr (+) 0 [distance gp food (point ant) | food <- foods, ant <- ants']
+  in numAnts - sumDistances
 
 doTurn :: GameParams -> GameState -> IO [Order]
 doTurn gp gs = do
-  let possibleOrders = combos (world gs) (myAnts (ants gs)) (food gs)
-      sortedOrders = sortBy (distanceToFood gp) possibleOrders
-      orders = firstPerAnt sortedOrders
-      
-  hPutStrLn stderr $ show possibleOrders
-  hPutStrLn stderr $ show sortedOrders
-  hPutStrLn stderr $ show $ head sortedOrders
+  let futures = map (\s -> s gs) [clockwiseStrategy, counterClockwiseStrategy]
+      evaluations = [(evaluate gp f, f) | f <- futures]
+      orders = forders (snd (head (sortBy (comparing fst) evaluations )))
+
   -- this shows how to check the remaining time
   elapsedTime <- timeRemaining gs
   hPutStrLn stderr $ show elapsedTime
