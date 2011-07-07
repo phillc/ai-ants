@@ -31,12 +31,7 @@ combos :: World -> [Ant] -> [Food] -> [(Order, Food)]
 combos _ [] _ = []
 combos world (ant:ants) foods = 
   let orders = validOrders world $ generateOrders ant
-  in (combos' orders foods) ++ (combos world ants foods)
-
-combos' :: [Order] -> [Food] -> [(Order, Food)]
-combos' _ [] = []
-combos' [] _ = []
-combos' (order:orders) foods = (map (\food -> (order, food)) foods) ++ (combos' orders foods)
+  in [(x, y) | x <- orders, y <- foods] ++ (combos world ants foods)
 
 doTurn :: GameParams -> GameState -> IO [Order]
 doTurn gp gs = do
