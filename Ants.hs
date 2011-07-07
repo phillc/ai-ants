@@ -13,6 +13,7 @@ module Ants
     -- Utility functions
   , myAnts
   , enemyAnts
+  , move
   , passable
   , distance
   , timeRemaining

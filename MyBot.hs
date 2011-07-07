@@ -12,8 +12,16 @@ validOrders w = filter (passable w)
 generateOrders :: Ant -> [Order]
 generateOrders a = map (Order a) [North .. West]
 
-distanceToFood :: (Order, Food) -> (Order, Food) -> Ordering
-distanceToFood pair1 pair2 = LT
+-- tmpDist :: (Order, Food) -> Int
+-- tmpDist order food = move (direction order) (point $ ant order)
+
+distanceToFood :: GameParams -> (Order, Food) -> (Order, Food) -> Ordering
+distanceToFood gp (order1, food1) (order2, food2) =
+  let location1 = move (direction order1) (point $ ant order1)
+      location2 = move (direction order2) (point $ ant order2)
+      distance1 = distance gp location1 food1
+      distance2 = distance gp location2 food2
+  in distance1 `compare` distance2
 
 firstPerAnt :: [(Order, Food)] -> [Order]
 firstPerAnt [] = []
@@ -33,9 +41,12 @@ combos' (order:orders) foods = (map (\food -> (order, food)) foods) ++ (combos' 
 doTurn :: GameParams -> GameState -> IO [Order]
 doTurn gp gs = do
   let possibleOrders = combos (world gs) (myAnts (ants gs)) (food gs)
-      sortedOrders = sortBy distanceToFood possibleOrders
+      sortedOrders = sortBy (distanceToFood gp) possibleOrders
       orders = firstPerAnt sortedOrders
       
+  hPutStrLn stderr $ show possibleOrders
+  hPutStrLn stderr $ show sortedOrders
+  hPutStrLn stderr $ show $ head sortedOrders
   -- this shows how to check the remaining time
   elapsedTime <- timeRemaining gs
   hPutStrLn stderr $ show elapsedTime
