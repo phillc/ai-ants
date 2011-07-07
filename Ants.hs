@@ -4,6 +4,7 @@ module Ants
     Owner (..)
   , Ant (..)
   , Direction (..)
+  , Food
   , GameParams (..)
   , GameState (..)
   , Order (..)

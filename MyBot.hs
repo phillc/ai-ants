@@ -6,29 +6,36 @@ import System.IO
 
 import Ants
 
--- | Picks the first "passable" order in a list
--- returns Nothing if no such order exists
-tryOrder :: World -> [Order] -> Maybe Order
-tryOrder w = find (passable w)
+validOrders :: World -> [Order] -> [Order]
+validOrders w = filter (passable w)
 
--- | Generates orders for an Ant in all directions
 generateOrders :: Ant -> [Order]
 generateOrders a = map (Order a) [North .. West]
 
-{- |
- - Implement this function to create orders.
- - It uses the IO Monad so algorithms can call timeRemaining.
- -
- - GameParams data holds values that are constant throughout the game
- - GameState holds data that changes between each turn
- - for each see Ants module for more information
- -}
+distanceToFood :: (Order, Food) -> (Order, Food) -> Ordering
+distanceToFood pair1 pair2 = LT
+
+firstPerAnt :: [(Order, Food)] -> [Order]
+firstPerAnt [] = []
+firstPerAnt (combo:combos) = [fst combo]
+
+combos :: World -> [Ant] -> [Food] -> [(Order, Food)]
+combos _ [] _ = []
+combos world (ant:ants) foods = 
+  let orders = validOrders world $ generateOrders ant
+  in (combos' orders foods) ++ (combos world ants foods)
+
+combos' :: [Order] -> [Food] -> [(Order, Food)]
+combos' _ [] = []
+combos' [] _ = []
+combos' (order:orders) foods = (map (\food -> (order, food)) foods) ++ (combos' orders foods)
+
 doTurn :: GameParams -> GameState -> IO [Order]
 doTurn gp gs = do
-  -- generate orders for all ants belonging to me
-  let generatedOrders = map generateOrders $ myAnts $ ants gs
-  -- for each ant take the first "passable" order, if one exists
-      orders = mapMaybe (tryOrder (world gs)) generatedOrders
+  let possibleOrders = combos (world gs) (myAnts (ants gs)) (food gs)
+      sortedOrders = sortBy distanceToFood possibleOrders
+      orders = firstPerAnt sortedOrders
+      
   -- this shows how to check the remaining time
   elapsedTime <- timeRemaining gs
   hPutStrLn stderr $ show elapsedTime
