@@ -268,6 +268,7 @@ data GameParams = GameParams
   , rows :: Int
   , cols :: Int
   , turns :: Int
+  , playerSeed :: Int
   , viewradius2 :: Int
   , attackradius2 :: Int
   , spawnradius2 :: Int
@@ -314,8 +315,7 @@ updateGameState vp gs s
       let own = toOwner.digitToInt.last $ s
           p = toPoint.init.tail $ s
           nw = writeTile (world gs) p $ Dead own
-          nw' = if own == Me then addVisible nw vp p else nw
-      in GameState nw' (ants gs) (food gs) (startTime gs)
+      in GameState nw (ants gs) (food gs) (startTime gs)
   | otherwise = gs -- ignore line
   where
     toPoint :: String -> Point
@@ -342,6 +342,7 @@ createParams s =
                 , rows          = lookup' "rows"
                 , cols          = lookup' "cols"
                 , turns         = lookup' "turns"
+                , playerSeed    = lookup' "player_seed"
                 , viewradius2   = vr2
                 , attackradius2 = ar2
                 , spawnradius2  = sr2
