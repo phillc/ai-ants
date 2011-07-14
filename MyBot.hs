@@ -1,15 +1,11 @@
 module Main where
 
 import Data.List
-import Data.Maybe (mapMaybe)
+import Data.Maybe (fromJust, isNothing)
 import Data.Ord (comparing)
 import System.IO
 
 import Ants
-
-
-
-
 import Data.Array
 
 simulateOrder :: Order -> Point
@@ -48,8 +44,7 @@ unoccupied :: Turn -> Point -> Bool
 unoccupied turn p = not $ any (== p) (map point $ myAnts $ ants turn)
 
 approachable :: Turn -> Order -> Bool
-approachable turn order = (passable (world turn) order) -- && (unoccupied turn (simulateOrder order))
-
+approachable turn order = (passable (world turn) order) && (unoccupied turn (simulateOrder order))
 
 circularStrategy :: [Direction] -> Turn -> Turn
 circularStrategy directions turn
@@ -58,8 +53,11 @@ circularStrategy directions turn
   | otherwise =
       let theAnt = head $ moveableAnts
           generatedOrders = map (Order theAnt) directions
-          orders = head $ filter (approachable turn) generatedOrders
-      in circularStrategy directions (createFuture turn [orders])
+          order = find (approachable turn) generatedOrders
+      in if isNothing order then
+           circularStrategy directions (turn{ants = (ImmobileAnt (point theAnt) (owner theAnt) : (tail moveableAnts))})
+         else
+           circularStrategy directions (createFuture turn [fromJust order])
   where ants' = myAnts $ ants turn
         moveableAnts = filter moveable ants'
 
