@@ -38,10 +38,10 @@ import System.IO
 
 import Util
 
-timeRemaining :: Turn -> IO NominalDiffTime
-timeRemaining gs = do
+timeRemaining :: UTCTime -> IO NominalDiffTime
+timeRemaining startTime = do
   timeNow <- getCurrentTime
-  return $ timeNow `diffUTCTime` startTime gs
+  return $ timeNow `diffUTCTime` startTime
 
 --------------------------------------------------------------------------------
 -- Points ----------------------------------------------------------------------
@@ -255,9 +255,12 @@ toOwner a = Enemy a
 type MWorld s = STArray s Point MetaTile
 type Food = Point
 
-data Turn
-  = GameState { world :: World , ants :: [Ant] , food :: [Food] , startTime :: UTCTime }
-  | Future { world :: World , ants :: [Ant] , food :: [Food] , orders :: [Order] }
+data Turn = Turn
+  { world :: World
+  , ants :: [Ant]
+  , food :: [Food]
+  , orders :: [Order]
+  }
 
 data GameParams = GameParams
   { loadtime :: Int
@@ -296,23 +299,23 @@ updateGameState vp gs s
       let p = toPoint.tail $ s
           fs' = p:food gs
           nw = writeTile (world gs) p FoodTile
-      in GameState nw (ants gs) fs' (startTime gs)
+      in Turn nw (ants gs) fs' []
   | "w" `isPrefixOf` s = -- add water
       let p = toPoint.tail $ s
           nw = writeTile (world gs) p Water
-      in GameState nw (ants gs) (food gs) (startTime gs)
+      in Turn nw (ants gs) (food gs) []
   | "a" `isPrefixOf` s = -- add ant
       let own = toOwner.digitToInt.last $ s
           p = toPoint.init.tail $ s
           as' = MobileAnt { point = p, owner = own}:ants gs
           nw = writeTile (world gs) p $ AntTile own
           nw' = if own == Me then addVisible nw vp p else nw
-      in GameState nw' as' (food gs) (startTime gs)
+      in Turn nw' as' (food gs) []
   | "d" `isPrefixOf` s = -- add dead ant
       let own = toOwner.digitToInt.last $ s
           p = toPoint.init.tail $ s
           nw = writeTile (world gs) p $ Dead own
-      in GameState nw (ants gs) (food gs) (startTime gs)
+      in Turn nw (ants gs) (food gs) []
   | otherwise = gs -- ignore line
   where
     toPoint :: String -> Point
@@ -359,8 +362,8 @@ mapWorld f w = runSTArray $ do
   mapM_ (modifyWorld mw f) (indices w)
   return mw
 
-gameLoop :: GameParams 
-         -> (Turn -> IO [Order])
+gameLoop :: GameParams
+         -> (UTCTime -> Turn -> IO [Order])
          -> World
          -> [String] -- input
          -> IO ()
@@ -369,8 +372,8 @@ gameLoop gp doTurn w (line:input)
       hPutStrLn stderr line
       time <- getCurrentTime
       let cs = break (isPrefixOf "go") input
-          gs = foldl' (updateGameState $ viewCircle gp) (GameState w [] [] time) (fst cs)
-      orders <- doTurn gs
+          gs = foldl' (updateGameState $ viewCircle gp) (Turn w [] [] []) (fst cs)
+      orders <- doTurn time gs
       mapM_ issueOrder orders
       finishTurn
       gameLoop gp doTurn (mapWorld clearMetaTile $ world gs) (tail $ snd cs) -- clear world for next turn
@@ -378,7 +381,7 @@ gameLoop gp doTurn w (line:input)
   | otherwise = gameLoop gp doTurn w input
 gameLoop _ _ _ [] = endGame []
 
-game :: (GameParams -> Turn -> IO [Order]) -> IO ()
+game :: (GameParams -> UTCTime -> Turn -> IO [Order]) -> IO ()
 game doTurn = do
   content <- getContents
   let cs = break (isPrefixOf "ready") $ lines content

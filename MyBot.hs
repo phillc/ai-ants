@@ -3,6 +3,7 @@ module Main where
 import Data.List
 import Data.Maybe (fromJust, isNothing)
 import Data.Ord (comparing)
+import Data.Time.Clock
 import System.IO
 
 import Ants
@@ -12,10 +13,8 @@ simulateOrder :: Order -> Point
 simulateOrder order = move (direction order) (point $ ant order)
 
 instance Show Turn where
-  show (GameState w a f _) = show (a, f)
-  --show (GameState w a f _) = show ((renderWorld w), a, f)
-  show (Future w a f o) = show (a, f, o)
-  --show (Future w a f o) = show ((renderWorld w), a, f, o)
+  show (Turn _ a f o) = show (a, f, o)
+  --show (Turn w a f o) = show ((renderWorld w), a, f, o)
 
 applyOrders :: [Ant] -> [Order] -> [Ant]
 applyOrders ants [] = ants
@@ -27,14 +26,12 @@ applyOrders ants (order:os) =
 createFuture :: Turn -> [Order] -> Turn
 createFuture turn os =
   let newAnts = applyOrders (ants turn) os
-      os' = case turn of
-                (GameState _ _ _ _) -> []
-                (Future _ _ _ os) -> os
-  in Future { world = world turn
-            , orders = os ++ os'
-            , ants = newAnts
-            , food = food turn
-            }
+      os' = orders turn
+  in Turn { world = world turn
+          , orders = os ++ os'
+          , ants = newAnts
+          , food = food turn
+          }
 
 moveable :: Ant -> Bool
 moveable (MobileAnt _ _) = True
@@ -79,8 +76,8 @@ evaluate gp turn =
       sumDistances = foldr (+) 0 [distance gp food (point ant) | food <- (food turn), ant <- (ants turn)]
   in numAnts - sumDistances
 
-doTurn :: GameParams -> Turn -> IO [Order]
-doTurn gp gs = do
+doTurn :: GameParams -> UTCTime -> Turn -> IO [Order]
+doTurn gp startTime gs = do
   let futures = map (\s -> s gs) [clockwiseStrategy', clockwiseStrategy, counterClockwiseStrategy', counterClockwiseStrategy]
       evaluations = sortBy (comparing (((-1) *) . fst)) [(evaluate gp f, f) | f <- futures]
       orders' = orders (snd (head evaluations))
@@ -98,7 +95,7 @@ doTurn gp gs = do
   --hPutStrLn stderr $ "evaluations:"
   --hPutStrLn stderr $ show evaluations
   -- this shows how to check the remaining time
-  elapsedTime <- timeRemaining gs
+  elapsedTime <- timeRemaining startTime
   hPutStrLn stderr $ show elapsedTime
   -- wrap list of orders back into a monad
   return orders' --orders'
