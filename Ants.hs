@@ -6,6 +6,7 @@ module Ants
   , Direction (..)
   , Food
   , GameParams (..)
+  , Tile (..)
   , Order (..)
   , Point
   , Turn (..)
@@ -18,6 +19,8 @@ module Ants
   , passable
   , distance
   , renderWorld
+  , tile
+  , (%!)
   , timeRemaining
 
     -- main function

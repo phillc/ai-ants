@@ -16,16 +16,21 @@ instance Show Turn where
   show (Turn _ a f o) = show (a, f, o)
   --show (Turn w a f o) = show ((renderWorld w), a, f, o)
 
-applyOrders :: [Ant] -> [Order] -> [Ant]
-applyOrders ants [] = ants
-applyOrders ants (order:os) =
-  let newAnt = ImmobileAnt (simulateOrder order) (owner $ ant order)
-      otherAnts = filter (/= (ant order)) ants
-  in [newAnt] ++ (applyOrders otherAnts os)
+applyOrders :: World -> [Ant] -> [Order] -> [Ant]
+applyOrders w ants [] = ants
+applyOrders w ants (order:os) =
+  let oldAnt = ant order
+      newAnt = ImmobileAnt (simulateOrder order) (owner oldAnt)
+      createdAnts = if tile (w %! (point newAnt)) == FoodTile then
+                      [ImmobileAnt (point oldAnt) (owner oldAnt)]
+                    else
+                      []
+      otherAnts = filter (/= oldAnt) ants
+  in createdAnts ++ [newAnt] ++ (applyOrders w otherAnts os)
 
 createFuture :: Turn -> [Order] -> Turn
 createFuture turn os =
-  let newAnts = applyOrders (ants turn) os
+  let newAnts = applyOrders (world turn) (ants turn) os
       os' = orders turn
   in Turn { world = world turn
           , orders = os ++ os'
@@ -73,8 +78,13 @@ counterClockwiseStrategy' = circularStrategy [East, South, West, North]
 evaluate :: GameParams -> Turn -> Int
 evaluate gp turn =
   let numAnts = length $ ants turn
-      sumDistances = foldr (+) 0 [distance gp food (point ant) | food <- (food turn), ant <- (ants turn)]
-  in numAnts - sumDistances
+      distances = [distance gp food (point ant) | food <- (food turn), ant <- (ants turn)]
+      shortestDistance = if null distances then
+                           0
+                         else
+                           head $ sort distances
+      sumDistances = foldr (+) 0 distances
+  in numAnts - sumDistances - (shortestDistance * 50)
 
 doTurn :: GameParams -> UTCTime -> Turn -> IO [Order]
 doTurn gp startTime gs = do
