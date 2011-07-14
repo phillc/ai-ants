@@ -6,9 +6,9 @@ module Ants
   , Direction (..)
   , Food
   , GameParams (..)
-  , GameState (..)
   , Order (..)
-  , Point (..)
+  , Point
+  , Turn (..)
   , World
 
     -- Utility functions
@@ -17,6 +17,7 @@ module Ants
   , move
   , passable
   , distance
+  , renderWorld
   , timeRemaining
 
     -- main function
@@ -37,7 +38,7 @@ import System.IO
 
 import Util
 
-timeRemaining :: GameState -> IO NominalDiffTime
+timeRemaining :: Turn -> IO NominalDiffTime
 timeRemaining gs = do
   timeNow <- getCurrentTime
   return $ timeNow `diffUTCTime` startTime gs
@@ -197,10 +198,9 @@ getPointCircle r2 =
 --------------------------------------------------------------------------------
 data Owner = Me | Enemy Int deriving (Show,Eq)
 
-data Ant = Ant
-  { point :: Point
-  , owner :: Owner
-  } deriving (Show, Eq)
+data Ant
+    = MobileAnt { point :: Point , owner :: Owner }
+    | ImmobileAnt { point :: Point , owner :: Owner } deriving (Show, Eq)
 
 isMe, isEnemy :: Ant -> Bool
 isMe = (==Me).owner
@@ -255,12 +255,9 @@ toOwner a = Enemy a
 type MWorld s = STArray s Point MetaTile
 type Food = Point
 
-data GameState = GameState
-  { world :: World
-  , ants :: [Ant] -- call "ants GameState" to all ants
-  , food :: [Food] -- call "food GameState" to all food
-  , startTime :: UTCTime
-  }
+data Turn
+  = GameState { world :: World , ants :: [Ant] , food :: [Food] , startTime :: UTCTime }
+  | Future { world :: World , ants :: [Ant] , food :: [Food] , orders :: [Order] }
 
 data GameParams = GameParams
   { loadtime :: Int
@@ -293,7 +290,7 @@ addVisible w vp p =
     mapM_ (setVisible w' . sumPoint p) vp
     return w'
 
-updateGameState :: [Point] -> GameState -> String -> GameState
+updateGameState :: [Point] -> Turn -> String -> Turn
 updateGameState vp gs s
   | "f" `isPrefixOf` s = -- add food
       let p = toPoint.tail $ s
@@ -307,7 +304,7 @@ updateGameState vp gs s
   | "a" `isPrefixOf` s = -- add ant
       let own = toOwner.digitToInt.last $ s
           p = toPoint.init.tail $ s
-          as' = Ant { point = p, owner = own}:ants gs
+          as' = MobileAnt { point = p, owner = own}:ants gs
           nw = writeTile (world gs) p $ AntTile own
           nw' = if own == Me then addVisible nw vp p else nw
       in GameState nw' as' (food gs) (startTime gs)
@@ -363,7 +360,7 @@ mapWorld f w = runSTArray $ do
   return mw
 
 gameLoop :: GameParams 
-         -> (GameState -> IO [Order])
+         -> (Turn -> IO [Order])
          -> World
          -> [String] -- input
          -> IO ()
@@ -381,7 +378,7 @@ gameLoop gp doTurn w (line:input)
   | otherwise = gameLoop gp doTurn w input
 gameLoop _ _ _ [] = endGame []
 
-game :: (GameParams -> GameState -> IO [Order]) -> IO ()
+game :: (GameParams -> Turn -> IO [Order]) -> IO ()
 game doTurn = do
   content <- getContents
   let cs = break (isPrefixOf "ready") $ lines content
