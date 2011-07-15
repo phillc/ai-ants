@@ -5,7 +5,9 @@ import Data.List
 import Data.Maybe (fromJust, isNothing)
 import Data.Ord (comparing)
 import Data.Time.Clock
+import qualified Data.Set as S
 import System.IO
+import Debug.Trace
 
 import Ants
 import Data.Graph.AStar
@@ -76,10 +78,26 @@ counterClockwiseStrategy = circularStrategy [West, South, East, North]
 counterClockwiseStrategy' :: Turn -> Turn
 counterClockwiseStrategy' = circularStrategy [East, South, West, North]
 
+surroundingPoints :: World -> Point -> [Point]
+surroundingPoints w p = filter (\p' -> tile (w %! p') /= Water) [move d p | d <- [North, West, East, South]]
+
+distance' :: GameParams -> World -> Point -> Point -> Int
+distance' gp w p1 p2 = case shortestPath gp w p1 p2 of
+                         Nothing -> 1000000
+                         Just path -> length path
+
+shortestPath :: GameParams -> World -> Point -> Point -> Maybe [Point]
+shortestPath gp w p1 p2 = aStar surroundingPoints' distanceOfNeighbor heuristic isGoal startingPoint
+  where surroundingPoints' = S.fromList . surroundingPoints w
+        distanceOfNeighbor _ _ = 1
+        heuristic = distance gp p2
+        isGoal p' = p' == p2
+        startingPoint = p1
+
 evaluate :: GameParams -> Turn -> Int
 evaluate gp turn =
-  let numAnts = length $ ants turn
-      distances = [distance gp food (point ant) | food <- (food turn), ant <- (ants turn)]
+  let numAnts = trace "ohai" $ length $ ants turn
+      distances = [distance' gp (world turn) food (point ant) | food <- (food turn), ant <- (ants turn)]
       shortestDistance = if null distances then
                            0
                          else
@@ -97,7 +115,8 @@ doTurn gp startTime gs = do
   --hPutStrLn stderr $ "hmmm2:"
   --hPutStrLn stderr $ show $ createFuture gs []
   --hPutStrLn stderr $ show $ orders $ createFuture gs [head $ filter (approachable gs) $ map (Order $ head $ filter moveable $ myAnts $ ants gs) [North]]
-  --
+  
+  hPutStrLn stderr $ "OK GO!"
   hPutStrLn stderr $ show $ evaluations
 
   --hPutStrLn stderr $ "future:"
