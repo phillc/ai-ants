@@ -1,5 +1,6 @@
 module Main where
 
+--import Data.Array
 import Data.List
 import Data.Maybe (fromJust, isNothing)
 import Data.Ord (comparing)
@@ -7,7 +8,7 @@ import Data.Time.Clock
 import System.IO
 
 import Ants
-import Data.Array
+import Data.Graph.AStar
 
 simulateOrder :: Order -> Point
 simulateOrder order = move (direction order) (point $ ant order)
