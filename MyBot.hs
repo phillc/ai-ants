@@ -10,7 +10,7 @@ import System.IO
 import Debug.Trace
 
 import Ants
-import Data.Graph.AStar
+import AStar
 
 simulateOrder :: Order -> Point
 simulateOrder order = move (direction order) (point $ ant order)
