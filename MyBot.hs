@@ -87,6 +87,7 @@ distance' gp w p1 p2 = case shortestPath gp w p1 p2 of
                          Just path -> length path
 
 shortestPath :: GameParams -> World -> Point -> Point -> Maybe [Point]
+--shortestPath gp w p1 p2 = trace "shortestPath" $ aStar surroundingPoints' distanceOfNeighbor heuristic isGoal startingPoint
 shortestPath gp w p1 p2 = aStar surroundingPoints' distanceOfNeighbor heuristic isGoal startingPoint
   where surroundingPoints' = S.fromList . surroundingPoints w
         distanceOfNeighbor _ _ = 1
@@ -96,7 +97,8 @@ shortestPath gp w p1 p2 = aStar surroundingPoints' distanceOfNeighbor heuristic 
 
 evaluate :: GameParams -> Turn -> Int
 evaluate gp turn =
-  let numAnts = trace "ohai" $ length $ ants turn
+  let numAnts = length $ ants turn
+  --let numAnts = trace "running evaluation" $ length $ ants turn
       distances = [distance' gp (world turn) food (point ant) | food <- (food turn), ant <- (ants turn)]
       shortestDistance = if null distances then
                            0
@@ -107,7 +109,7 @@ evaluate gp turn =
 
 doTurn :: GameParams -> UTCTime -> Turn -> IO [Order]
 doTurn gp startTime gs = do
-  let futures = map (\s -> s gs) [clockwiseStrategy', clockwiseStrategy, counterClockwiseStrategy', counterClockwiseStrategy]
+  let futures = map (\s -> s gs) [counterClockwiseStrategy, clockwiseStrategy, clockwiseStrategy', counterClockwiseStrategy']
       evaluations = sortBy (comparing (((-1) *) . fst)) [(evaluate gp f, f) | f <- futures]
       orders' = orders (snd (head evaluations))
   --hPutStrLn stderr $ "hmmm:"
@@ -116,8 +118,8 @@ doTurn gp startTime gs = do
   --hPutStrLn stderr $ show $ createFuture gs []
   --hPutStrLn stderr $ show $ orders $ createFuture gs [head $ filter (approachable gs) $ map (Order $ head $ filter moveable $ myAnts $ ants gs) [North]]
   
-  hPutStrLn stderr $ "OK GO!"
-  hPutStrLn stderr $ show $ evaluations
+  --hPutStrLn stderr $ "About to show evaluations"
+  --hPutStrLn stderr $ show $ evaluations
 
   --hPutStrLn stderr $ "future:"
   --hPutStrLn stderr $ show $ circularStrategy [North] gs
