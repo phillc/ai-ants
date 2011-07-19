@@ -2,6 +2,7 @@
 *.o
 *.zip
 *.swp
+staging
 tags
 test
 MyBot

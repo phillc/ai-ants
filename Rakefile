@@ -12,3 +12,13 @@ task :compile do
   puts `ghc --make -O MyBot`
 end
 
+task :make do
+  `rm -rf staging/*`
+  `mkdir -p staging/contest_package`
+  `mkdir -p staging/contest_package/Data/Graph`
+  `cp #{PROJECT_DIR}/*.hs staging/contest_package`
+  `cp #{PROJECT_DIR}/Data/*.hs staging/contest_package/Data`
+  `cp #{PROJECT_DIR}/Data/Graph/*.hs staging/contest_package/Data/Graph`
+  `cd staging && zip -r contest_package.zip contest_package && rm -rf contest_package`
+end
+
