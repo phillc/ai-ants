@@ -116,19 +116,9 @@ doTurn gp startTime gs = do
   let futures = map (\s -> s gs) [counterClockwiseStrategy, clockwiseStrategy, clockwiseStrategy', counterClockwiseStrategy']
       evaluations = sortBy (comparing (((-1) *) . fst)) [(evaluate gp f, f) | f <- futures]
       orders' = orders (snd (head evaluations))
-  --hPutStrLn stderr $ "************************** Turn start"
-  --hPutStrLn stderr $ "my ants are " ++ show ants 
-  --hPutStrLn stderr $ show $ renderWorld $ world gs
-  
-  --hPutStrLn stderr $ "About to show evaluations"
-  --hPutStrLn stderr $ show $ evaluations
 
-  --hPutStrLn stderr $ "future:"
-  --hPutStrLn stderr $ show $ circularStrategy [North] gs
-
-  --hPutStrLn stderr $ "evaluations:"
-  --hPutStrLn stderr $ show evaluations
   -- this shows how to check the remaining time
+  hPutStrLn stderr $ show orders'
   elapsedTime <- timeRemaining startTime
   hPutStrLn stderr $ show elapsedTime
   -- wrap list of orders back into a monad
