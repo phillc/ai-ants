@@ -15,12 +15,14 @@ module Ants
     -- Utility functions
   , myAnts
   , enemyAnts
+  , manhattan
   , move
   , passable
   , distance
   , renderWorld
   , tile
   , (%!)
+  , (%!%)
   , timeRemaining
 
     -- main function
