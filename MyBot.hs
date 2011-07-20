@@ -66,16 +66,9 @@ circularStrategy directions turn
   where ants' = myAnts $ ants turn
         moveableAnts = filter moveable ants'
 
-clockwiseStrategy :: Turn -> Turn
 clockwiseStrategy = circularStrategy [North, East, South, West]
-
-clockwiseStrategy' :: Turn -> Turn
 clockwiseStrategy' = circularStrategy [South, East, North, West]
-
-counterClockwiseStrategy :: Turn -> Turn
 counterClockwiseStrategy = circularStrategy [West, South, East, North]
-
-counterClockwiseStrategy' :: Turn -> Turn
 counterClockwiseStrategy' = circularStrategy [East, South, West, North]
 
 surroundingPoints :: World -> Point -> [Point]
@@ -83,26 +76,21 @@ surroundingPoints w p = filter (\p' -> tile (w %! p') /= Water) [w %!% move d p 
 
 distance' :: GameParams -> World -> Point -> Point -> Int
 distance' gp w p1 p2 = case shortestPath gp w p1 p2 of
---distance' gp w p1 p2 = case (trace ("the shortestPath was" ++ show foo) foo) of
                          Nothing -> 100
                          Just path -> length path
    where foo = shortestPath gp w p1 p2
 
 shortestPath :: GameParams -> World -> Point -> Point -> Maybe [Point]
---shortestPath gp w p1 p2 = trace ("shortestPath " ++ show p1 ++ " " ++ show p2)  $ aStar surroundingPoints' distanceOfNeighbor heuristic isGoal startingPoint
 shortestPath gp w p1 p2 = aStar surroundingPoints' distanceOfNeighbor heuristic isGoal startingPoint
-  --where surroundingPoints' pp = trace ("surrounding points of " ++ show pp ++ " is " ++ ( show $ S.fromList $ surroundingPoints w pp )) (S.fromList $ surroundingPoints w pp)
   where surroundingPoints' = S.fromList . surroundingPoints w
         distanceOfNeighbor _ _ = 1
         heuristic = distance gp p2
-        -- heuristic otherPoint= trace ("checking heurstic distance between " ++ show p2 ++ " and " ++ show otherPoint) $ distance gp p2 otherPoint
         isGoal p' = p' == p2
         startingPoint = p1
 
 evaluate :: GameParams -> Turn -> Int
 evaluate gp turn =
   let numAnts = length $ ants turn
-  --let numAnts = trace "running evaluation" $ length $ ants turn
       distances = [distance' gp (world turn) food (point ant) | food <- (food turn), ant <- (myAnts $ ants turn)]
       shortestDistance = if null distances then
                            0
@@ -122,7 +110,7 @@ doTurn gp startTime gs = do
   elapsedTime <- timeRemaining startTime
   hPutStrLn stderr $ show elapsedTime
   -- wrap list of orders back into a monad
-  return orders' --orders'
+  return orders'
 
 -- | This runs the game
 main :: IO ()
