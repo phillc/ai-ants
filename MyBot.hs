@@ -15,9 +15,9 @@ import AStar
 simulateOrder :: Order -> Point
 simulateOrder order = move (direction order) (point $ ant order)
 
-instance Show Turn where
-  show (Turn _ a f o) = show (a, f, o)
-  --show (Turn w a f o) = show ((renderWorld w), a, f, o)
+instance Show GameState where
+  show (GameState _ a f o) = show (a, f, o)
+  --show (GameState w a f o) = show ((renderWorld w), a, f, o)
 
 applyOrders :: World -> [Ant] -> [Order] -> [Ant]
 applyOrders w ants [] = ants
@@ -31,27 +31,25 @@ applyOrders w ants (order:os) =
       otherAnts = filter (/= oldAnt) ants
   in createdAnts ++ [newAnt] ++ (applyOrders w otherAnts os)
 
-createFuture :: Turn -> [Order] -> Turn
+createFuture :: GameState -> [Order] -> GameState
 createFuture turn os =
   let newAnts = applyOrders (world turn) (ants turn) os
       os' = orders turn
-  in Turn { world = world turn
-          , orders = os ++ os'
+  in turn { orders = os ++ os'
           , ants = newAnts
-          , food = food turn
           }
 
 moveable :: Ant -> Bool
 moveable (MobileAnt _ _) = True
 moveable _ = False
 
-unoccupied :: Turn -> Point -> Bool
+unoccupied :: GameState -> Point -> Bool
 unoccupied turn p = not $ any (== p) (map point $ myAnts $ ants turn)
 
-approachable :: Turn -> Order -> Bool
+approachable :: GameState -> Order -> Bool
 approachable turn order = (passable (world turn) order) && (unoccupied turn (simulateOrder order))
 
-circularStrategy :: [Direction] -> Turn -> Turn
+circularStrategy :: [Direction] -> GameState -> GameState
 circularStrategy directions turn
   | null ants' = createFuture turn []
   | null moveableAnts = createFuture turn []
@@ -88,7 +86,7 @@ shortestPath gp w p1 p2 = aStar surroundingPoints' distanceOfNeighbor heuristic 
         isGoal p' = p' == p2
         startingPoint = p1
 
-evaluate :: GameParams -> Turn -> Int
+evaluate :: GameParams -> GameState -> Int
 evaluate gp turn =
   let numAnts = length $ ants turn
       distances = [distance' gp (world turn) food (point ant) | food <- (food turn), ant <- (myAnts $ ants turn)]
@@ -99,7 +97,7 @@ evaluate gp turn =
       sumDistances = foldr (+) 0 distances
   in numAnts - sumDistances - (shortestDistance * 50)
 
-doTurn :: GameParams -> UTCTime -> Turn -> IO [Order]
+doTurn :: GameParams -> UTCTime -> GameState -> IO [Order]
 doTurn gp startTime gs = do
   let futures = map (\s -> s gs) [counterClockwiseStrategy, clockwiseStrategy, clockwiseStrategy', counterClockwiseStrategy']
       evaluations = sortBy (comparing (((-1) *) . fst)) [(evaluate gp f, f) | f <- futures]
