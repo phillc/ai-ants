@@ -43,6 +43,8 @@ import System.IO
 
 import Util
 import Debug.Trace
+import AStar
+import qualified Data.Set as S
 
 timeRemaining :: UTCTime -> IO NominalDiffTime
 timeRemaining startTime = do
@@ -267,15 +269,36 @@ data GameState = GameState
   , food :: [Food]
   , orders :: [Order]
   , surroundingPoints :: (Point -> [Point]) -- Array Point [Point]
+  , shortestPath :: (Point -> Point -> Maybe [Point])
   }
 
+-- Create a new Game State with the new world
 newGameState :: GameParams -> World -> GameState
 newGameState gp w = GameState { world = w
                               , ants = []
                               , food = []
                               , orders = []
-                              , surroundingPoints = \p -> sps ! p
+                              , surroundingPoints = memoSurroundingPoints w
+                              , shortestPath = memoShortestPath gp w
                               }
+
+memoShortestPath :: GameParams -> World -> (Point -> Point -> Maybe [Point])
+memoShortestPath gp w = \p1 p2 -> sps ! (p1, p2)
+  where maxRow = rowBound w
+        maxCol = colBound w
+        boundaries = ((0,0), (maxRow, maxCol))
+        sps = array (boundaries, boundaries) [((from,to), shortestPath' gp w from to) | from <- indices w, to <- indices w]
+
+shortestPath' :: GameParams -> World -> Point -> Point -> Maybe [Point]
+shortestPath' gp w p1 p2 = aStar surroundingPoints' distanceOfNeighbor heuristic isGoal startingPoint
+  where surroundingPoints' = S.fromList . surroundingPoints w
+        distanceOfNeighbor _ _ = 1
+        heuristic = distance gp p2
+        isGoal p' = p' == p2
+        startingPoint = p1
+
+memoSurroundingPoints :: World -> (Point -> [Point])
+memoSurroundingPoints w = \p -> sps ! p
   where maxRow = rowBound w
         maxCol = colBound w
         boundaries = ((0,0), (maxRow, maxCol))
