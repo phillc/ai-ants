@@ -16,7 +16,7 @@ simulateOrder :: Order -> Point
 simulateOrder order = move (direction order) (point $ ant order)
 
 instance Show GameState where
-  show (GameState _ a f o) = show (a, f, o)
+  show (GameState _ a f o _) = show (a, f, o)
   --show (GameState w a f o) = show ((renderWorld w), a, f, o)
 
 applyOrders :: World -> [Ant] -> [Order] -> [Ant]
@@ -69,27 +69,24 @@ clockwiseStrategy' = circularStrategy [South, East, North, West]
 counterClockwiseStrategy = circularStrategy [West, South, East, North]
 counterClockwiseStrategy' = circularStrategy [East, South, West, North]
 
-surroundingPoints :: World -> Point -> [Point]
-surroundingPoints w p = filter (\p' -> tile (w %! p') /= Water) [w %!% move d p | d <- [North, West, East, South]]
 
-distance' :: GameParams -> World -> Point -> Point -> Int
-distance' gp w p1 p2 = case shortestPath gp w p1 p2 of
+distance' :: GameParams -> GameState -> Point -> Point -> Int
+distance' gp gs p1 p2 = case shortestPath gp gs p1 p2 of
                          Nothing -> 100
                          Just path -> length path
-   where foo = shortestPath gp w p1 p2
 
-shortestPath :: GameParams -> World -> Point -> Point -> Maybe [Point]
-shortestPath gp w p1 p2 = aStar surroundingPoints' distanceOfNeighbor heuristic isGoal startingPoint
-  where surroundingPoints' = S.fromList . surroundingPoints w
+shortestPath :: GameParams -> GameState -> Point -> Point -> Maybe [Point]
+shortestPath gp gs p1 p2 = aStar surroundingPoints' distanceOfNeighbor heuristic isGoal startingPoint
+  where surroundingPoints' = S.fromList . surroundingPoints gs
         distanceOfNeighbor _ _ = 1
         heuristic = distance gp p2
         isGoal p' = p' == p2
         startingPoint = p1
 
 evaluate :: GameParams -> GameState -> Int
-evaluate gp turn =
-  let numAnts = length $ ants turn
-      distances = [distance' gp (world turn) food (point ant) | food <- (food turn), ant <- (myAnts $ ants turn)]
+evaluate gp gs =
+  let numAnts = length $ ants gs
+      distances = [distance' gp gs food (point ant) | food <- (food gs), ant <- (myAnts $ ants gs)]
       shortestDistance = if null distances then
                            0
                          else

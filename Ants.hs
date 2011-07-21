@@ -266,14 +266,23 @@ data GameState = GameState
   , ants :: [Ant]
   , food :: [Food]
   , orders :: [Order]
+  , surroundingPoints :: (Point -> [Point]) -- Array Point [Point]
   }
 
-newGameState = GameState { world = array ((1,1),(0,0)) []
-               , ants = []
-               , food = []
-               , orders = []
-               }
+newGameState :: GameParams -> World -> GameState
+newGameState gp w = GameState { world = w
+                              , ants = []
+                              , food = []
+                              , orders = []
+                              , surroundingPoints = \p -> sps ! p
+                              }
+  where maxRow = rowBound w
+        maxCol = colBound w
+        boundaries = ((0,0), (maxRow, maxCol))
+        sps = array boundaries [(point', surroundingPoints' w point') | point' <- indices w]
 
+surroundingPoints' :: World -> Point -> [Point]
+surroundingPoints' w p = filter (\p' -> tile (w %! p') /= Water) [w %!% move d p | d <- [North, West, East, South]]
 
 data GameParams = GameParams
   { loadtime :: Int
@@ -389,7 +398,7 @@ gameLoop gp doTurn w (line:input)
       hPutStrLn stderr line
       time <- getCurrentTime
       let cs = break (isPrefixOf "go") input
-          gs = foldl' (updateGameState $ viewCircle gp) newGameState{ world = w } (fst cs)
+          gs = foldl' (updateGameState $ viewCircle gp) (newGameState gp w) (fst cs)
       orders <- doTurn time gs
       mapM_ issueOrder orders
       finishTurn
