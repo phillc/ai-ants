@@ -312,23 +312,27 @@ updateGameState vp gs s
       let p = toPoint.tail $ s
           fs' = p:food gs
           nw = writeTile (world gs) p FoodTile
-      in GameState nw (ants gs) fs' []
+      in gs{ world = nw
+           , food = fs'
+           }
   | "w" `isPrefixOf` s = -- add water
       let p = toPoint.tail $ s
           nw = writeTile (world gs) p Water
-      in GameState nw (ants gs) (food gs) []
+      in gs{ world = nw }
   | "a" `isPrefixOf` s = -- add ant
       let own = toOwner.digitToInt.last $ s
           p = toPoint.init.tail $ s
           as' = MobileAnt { point = p, owner = own}:ants gs
           nw = writeTile (world gs) p $ AntTile own
           nw' = if own == Me then addVisible nw vp p else nw
-      in GameState nw' as' (food gs) []
+      in gs{ world = nw'
+           , ants = as'
+           }
   | "d" `isPrefixOf` s = -- add dead ant
       let own = toOwner.digitToInt.last $ s
           p = toPoint.init.tail $ s
           nw = writeTile (world gs) p $ Dead own
-      in GameState nw (ants gs) (food gs) []
+      in gs{ world = nw }
   | otherwise = gs -- ignore line
   where
     toPoint :: String -> Point
