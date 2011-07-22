@@ -7,6 +7,7 @@ import Data.Ord (comparing)
 import Data.Time.Clock
 import System.IO
 import Debug.Trace
+import Data.Array
 
 import Ants
 
@@ -14,7 +15,7 @@ simulateOrder :: Order -> Point
 simulateOrder order = move (direction order) (point $ ant order)
 
 instance Show GameState where
-  show (GameState _ a f o _) = show (a, f, o)
+  show (GameState _ a f o ) = show (a, f, o)
   --show (GameState w a f o) = show ((renderWorld w), a, f, o)
 
 applyOrders :: World -> [Ant] -> [Order] -> [Ant]
@@ -67,16 +68,30 @@ clockwiseStrategy' = circularStrategy [South, East, North, West]
 counterClockwiseStrategy = circularStrategy [West, South, East, North]
 counterClockwiseStrategy' = circularStrategy [East, South, West, North]
 
+data Memoizer = Memoizer
+  { mShortestPath :: (Point -> Point -> Maybe [Point])
+  , mSurroundingPoints :: (Point -> [Point])
+  }
 
-distance' :: GameParams -> GameState -> Point -> Point -> Int
-distance' gp gs p1 p2 = case shortestPath gp gs p1 p2 of
-                         Nothing -> 100
-                         Just path -> length path
+newMemoizer gp gs = Memoizer { mShortestPath = memoShortestPath
+                             , mSurroundingPoints = memoSurroundingPoints
+                             }
+  where w = world gs
+        maxRow = rowBound w
+        maxCol = colBound w
+        boundaries = ((0,0), (maxRow, maxCol))
+        memoShortestPath p1 p2 = array (boundaries, boundaries) [((from,to), shortestPath gp w from to) | from <- indices w, to <- indices w] ! (p1,p2)
+        memoSurroundingPoints p = array boundaries [(point', surroundingPoints w point') | point' <- indices w] ! p
 
-evaluate :: GameParams -> GameState -> Int
-evaluate gp gs =
+distance' :: Memoizer -> Point -> Point -> Int
+distance' mem p1 p2 = case mShortestPath mem p1 p2 of
+                        Nothing -> 100
+                        Just path -> length path
+
+evaluate :: Memoizer -> GameState -> Int
+evaluate mem gs =
   let numAnts = length $ ants gs
-      distances = [distance' gp gs food (point ant) | food <- (food gs), ant <- (myAnts $ ants gs)]
+      distances = [distance' mem food (point ant) | food <- (food gs), ant <- (myAnts $ ants gs)]
       shortestDistance = if null distances then
                            0
                          else
@@ -86,8 +101,9 @@ evaluate gp gs =
 
 doTurn :: GameParams -> UTCTime -> GameState -> IO [Order]
 doTurn gp startTime gs = do
-  let futures = map (\s -> s gs) [counterClockwiseStrategy, clockwiseStrategy, clockwiseStrategy', counterClockwiseStrategy']
-      evaluations = sortBy (comparing (((-1) *) . fst)) [(evaluate gp f, f) | f <- futures]
+  let memoizer = newMemoizer gp gs
+      futures = map (\s -> s gs) [counterClockwiseStrategy, clockwiseStrategy, clockwiseStrategy', counterClockwiseStrategy']
+      evaluations = sortBy (comparing (((-1) *) . fst)) [(evaluate memoizer f, f) | f <- futures]
       orders' = orders (snd (head evaluations))
 
   -- this shows how to check the remaining time

@@ -14,12 +14,16 @@ module Ants
 
     -- Utility functions
   , myAnts
+  , colBound
   , enemyAnts
   , manhattan
   , move
   , passable
   , distance
   , renderWorld
+  , rowBound
+  , shortestPath
+  , surroundingPoints
   , tile
   , (%!)
   , (%!%)
@@ -201,6 +205,18 @@ getPointCircle r2 =
   let rx = truncate.sqrt.(fromIntegral::Int -> Double) $ r2
   in filter ((<=r2).twoNormSquared) $ (,) <$> [-rx..rx] <*> [-rx..rx]
 
+
+shortestPath :: GameParams -> World -> Point -> Point -> Maybe [Point]
+shortestPath gp w p1 p2 = aStar surroundingPoints' distanceOfNeighbor heuristic isGoal startingPoint
+  where surroundingPoints' = S.fromList . surroundingPoints w
+        distanceOfNeighbor _ _ = 1
+        heuristic = distance gp p2
+        isGoal p' = p' == p2
+        startingPoint = p1
+
+surroundingPoints :: World -> Point -> [Point]
+surroundingPoints w p = filter (\p' -> tile (w %! p') /= Water) [w %!% move d p | d <- [North, West, East, South]]
+
 --------------------------------------------------------------------------------
 -- Ants ------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -268,8 +284,6 @@ data GameState = GameState
   , ants :: [Ant]
   , food :: [Food]
   , orders :: [Order]
-  , surroundingPoints :: (Point -> [Point]) -- Array Point [Point]
-  , shortestPath :: (Point -> Point -> Maybe [Point])
   }
 
 -- Create a new Game State with the new world
@@ -278,34 +292,7 @@ newGameState gp w = GameState { world = w
                               , ants = []
                               , food = []
                               , orders = []
-                              , surroundingPoints = memoSurroundingPoints w
-                              , shortestPath = memoShortestPath gp w
                               }
-
-memoShortestPath :: GameParams -> World -> (Point -> Point -> Maybe [Point])
-memoShortestPath gp w = \p1 p2 -> sps ! (p1, p2)
-  where maxRow = rowBound w
-        maxCol = colBound w
-        boundaries = ((0,0), (maxRow, maxCol))
-        sps = array (boundaries, boundaries) [((from,to), shortestPath' gp w from to) | from <- indices w, to <- indices w]
-
-shortestPath' :: GameParams -> World -> Point -> Point -> Maybe [Point]
-shortestPath' gp w p1 p2 = aStar surroundingPoints' distanceOfNeighbor heuristic isGoal startingPoint
-  where surroundingPoints' = S.fromList . surroundingPoints w
-        distanceOfNeighbor _ _ = 1
-        heuristic = distance gp p2
-        isGoal p' = p' == p2
-        startingPoint = p1
-
-memoSurroundingPoints :: World -> (Point -> [Point])
-memoSurroundingPoints w = \p -> sps ! p
-  where maxRow = rowBound w
-        maxCol = colBound w
-        boundaries = ((0,0), (maxRow, maxCol))
-        sps = array boundaries [(point', surroundingPoints' w point') | point' <- indices w]
-
-surroundingPoints' :: World -> Point -> [Point]
-surroundingPoints' w p = filter (\p' -> tile (w %! p') /= Water) [w %!% move d p | d <- [North, West, East, South]]
 
 data GameParams = GameParams
   { loadtime :: Int
