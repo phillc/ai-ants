@@ -2,9 +2,13 @@ module Main where
 
 import Data.List
 import Data.Maybe (mapMaybe)
+import Control.Monad.State
 import System.IO
+import Data.Time.Clock
 
 import Ants
+
+type GS = State GameState
 
 -- | Picks the first "passable" order in a list
 -- returns Nothing if no such order exists
@@ -23,17 +27,21 @@ generateOrders a = map (Order a) [North .. West]
  - GameState holds data that changes between each turn
  - for each see Ants module for more information
  -}
-doTurn :: GameParams -> GameState -> IO [Order]
-doTurn gp gs = do
+doEverything :: GameParams -> GS [Order]
+doEverything gp = do
+  gs <- get
   -- generate orders for all ants belonging to me
   let generatedOrders = map generateOrders $ myAnts $ ants gs
   -- for each ant take the first "passable" order, if one exists
       orders = mapMaybe (tryOrder (world gs)) generatedOrders
   -- this shows how to check the remaining time
-  elapsedTime <- timeRemaining gs
-  hPutStrLn stderr $ show elapsedTime
+  --elapsedTime <- timeRemaining gs
+  --hPutStrLn stderr $ show elapsedTime
   -- wrap list of orders back into a monad
   return orders
+
+doTurn :: GameParams -> GameState -> [Order]
+doTurn gp gs = evalState (doEverything gp) gs
 
 -- | This runs the game
 main :: IO ()

@@ -360,7 +360,7 @@ mapWorld f w = runSTArray $ do
   return mw
 
 gameLoop :: GameParams 
-         -> (GameState -> IO [Order])
+         -> (GameState -> [Order])
          -> World
          -> [String] -- input
          -> IO ()
@@ -370,15 +370,14 @@ gameLoop gp doTurn w (line:input)
       time <- getCurrentTime
       let cs = break (isPrefixOf "go") input
           gs = foldl' (updateGameState $ viewCircle gp) (GameState w [] [] time) (fst cs)
-      orders <- doTurn gs
-      mapM_ issueOrder orders
+      mapM_ issueOrder $ doTurn gs
       finishTurn
       gameLoop gp doTurn (mapWorld clearMetaTile $ world gs) (tail $ snd cs) -- clear world for next turn
   | "end" `isPrefixOf` line = endGame input
   | otherwise = gameLoop gp doTurn w input
 gameLoop _ _ _ [] = endGame []
 
-game :: (GameParams -> GameState -> IO [Order]) -> IO ()
+game :: (GameParams -> GameState -> [Order]) -> IO ()
 game doTurn = do
   content <- getContents
   let cs = break (isPrefixOf "ready") $ lines content
