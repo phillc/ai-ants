@@ -1,8 +1,10 @@
+.DS_Store
 *.hi
 *.o
-*.py
 *.zip
-*.txt
-MyBot
+*.swp
+staging
 tags
 test
+MyBot
+MyBot.prof
