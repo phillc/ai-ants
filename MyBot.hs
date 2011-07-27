@@ -73,15 +73,16 @@ data Memoizer = Memoizer
   , mSurroundingPoints :: (Point -> [Point])
   }
 
-newMemoizer gp gs = Memoizer { mShortestPath = memoShortestPath
-                             , mSurroundingPoints = memoSurroundingPoints
+newMemoizer gp gs = Memoizer { mShortestPath = (\p1 p2 -> trace ("shortest path from, to: " ++ show (p1, p2)) (memoShortestPath ! (p1,p2)))
+                             , mSurroundingPoints = (\p -> memoSurroundingPoints ! p)
                              }
   where w = world gs
         maxRow = rowBound w
         maxCol = colBound w
-        boundaries = ((0,0), (maxRow, maxCol))
-        memoShortestPath p1 p2 = array (boundaries, boundaries) [((from,to), shortestPath gp w from to) | from <- indices w, to <- indices w] ! (p1,p2)
-        memoSurroundingPoints p = array boundaries [(point', surroundingPoints w point') | point' <- indices w] ! p
+        boundary = (((0,0),(0,0)),((maxCol,maxRow),(maxCol, maxRow)))
+        allPoints = [(x,y) | x <- [0..maxCol], y <- [0..maxRow]]
+        memoShortestPath = array boundary [((from,to), shortestPath gp w from to) | from <- allPoints, to <- allPoints]
+        memoSurroundingPoints = array ((0,0),(maxCol, maxRow)) [(point', surroundingPoints w point') | point' <- indices w]
 
 distance' :: Memoizer -> Point -> Point -> Int
 distance' mem p1 p2 = case mShortestPath mem p1 p2 of
