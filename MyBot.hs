@@ -39,7 +39,9 @@ applyOrders w ants (order:os) =
 createFuture :: GameState -> [Order] -> GameState
 createFuture gs os =
   let newAnts = applyOrders (world gs) (ants gs) os
-  in gs { ants = newAnts
+      os' = orders gs
+  in gs { orders = os ++ os'
+        , ants = newAnts
         }
 
 moveable :: Ant -> Bool
@@ -72,16 +74,16 @@ clockwiseStrategy' = circularStrategy [South, East, North, West]
 counterClockwiseStrategy = circularStrategy [West, South, East, North]
 counterClockwiseStrategy' = circularStrategy [East, South, West, North]
 
-mShortestPath :: GameParams -> World -> Point -> Point -> T (Maybe [Point])
+mShortestPath :: GameParams -> World -> Point -> Point -> Maybe [Point]
 mShortestPath = shortestPath
 
-distance' :: GameParams -> World -> Point -> Point -> T Int
+distance' :: GameParams -> World -> Point -> Point -> Int
 distance' gp w p1 p2 = case mShortestPath gp w p1 p2 of
                           Nothing -> 100
                           Just path -> length path
 
-evaluate :: GameParams -> GameState -> T Int
-evaluate gp gs = do
+evaluate :: GameParams -> GameState -> Int
+evaluate gp gs =
   let numAnts = length $ ants gs
       w = world gs
       distances = [distance' gp w food (point ant) | food <- (food gs), ant <- (myAnts $ ants gs)]
@@ -90,7 +92,7 @@ evaluate gp gs = do
                          else
                            head $ sort distances
       sumDistances = foldr (+) 0 distances
-  return $ numAnts - sumDistances - (shortestDistance * 5)
+  in numAnts - sumDistances - (shortestDistance * 5)
 
 doEverything :: GameParams -> GameState -> T [Order]
 doEverything gp gs = do
