@@ -189,15 +189,25 @@ getPointCircle r2 =
   let rx = truncate.sqrt.(fromIntegral::Int -> Double) $ r2
   in filter ((<=r2).twoNormSquared) $ (,) <$> [-rx..rx] <*> [-rx..rx]
 
+shortestPath :: GameParams -> World -> Point -> Point -> Maybe [Point]
+shortestPath gp w p1 p2 = aStar surroundingPoints' distanceOfNeighbor heuristic isGoal startingPoint
+  where surroundingPoints' = S.fromList . surroundingPoints w
+        distanceOfNeighbor _ _ = 1
+        heuristic = distance gp p2
+        isGoal p' = p' == p2
+        startingPoint = p1
+
+surroundingPoints :: World -> Point -> [Point]
+surroundingPoints w p = filter (\p' -> tile (w %! p') /= Water) [w %!% move d p | d <- [North, West, East, South]]
+
 --------------------------------------------------------------------------------
 -- Ants ------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 data Owner = Me | Enemy Int deriving (Show,Eq)
 
-data Ant = Ant
-  { point :: Point
-  , owner :: Owner
-  } deriving (Show)
+data Ant
+    = MobileAnt { point :: Point , owner :: Owner }
+    | ImmobileAnt { point :: Point , owner :: Owner } deriving (Show, Eq)
 
 isMe, isEnemy :: Ant -> Bool
 isMe = (==Me).owner
