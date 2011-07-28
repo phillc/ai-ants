@@ -34,6 +34,8 @@ import System.IO
 
 import Util
 
+import AStar
+
 timeRemaining :: GameState -> IO NominalDiffTime
 timeRemaining gs = do
   timeNow <- getCurrentTime
