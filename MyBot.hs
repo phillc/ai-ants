@@ -8,7 +8,15 @@ import Data.Time.Clock
 
 import Ants
 
-type GS = State GameState
+data Memoizer = Memoizer {}
+data Turn = Turn { memo :: Memoizer, gameState :: GameState }
+
+newTurn :: GameState -> Turn
+newTurn gs = Turn { memo = Memoizer
+                  , gameState = gs
+                  }
+
+type T = State Turn
 
 -- | Picks the first "passable" order in a list
 -- returns Nothing if no such order exists
@@ -27,11 +35,12 @@ generateOrders a = map (Order a) [North .. West]
  - GameState holds data that changes between each turn
  - for each see Ants module for more information
  -}
-doEverything :: GameParams -> GS [Order]
+doEverything :: GameParams -> T [Order]
 doEverything gp = do
-  gs <- get
+  turn <- get
   -- generate orders for all ants belonging to me
-  let generatedOrders = map generateOrders $ myAnts $ ants gs
+  let gs = gameState turn
+      generatedOrders = map generateOrders $ myAnts $ ants gs
   -- for each ant take the first "passable" order, if one exists
       orders = mapMaybe (tryOrder (world gs)) generatedOrders
   -- this shows how to check the remaining time
@@ -41,7 +50,7 @@ doEverything gp = do
   return orders
 
 doTurn :: GameParams -> GameState -> [Order]
-doTurn gp gs = evalState (doEverything gp) gs
+doTurn gp gs = evalState (doEverything gp) (newTurn gs)
 
 -- | This runs the game
 main :: IO ()
