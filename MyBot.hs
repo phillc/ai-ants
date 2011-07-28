@@ -9,13 +9,11 @@ import Data.Time.Clock
 
 import Ants
 
-data Memoizer = Memoizer {}
-data Turn = Turn { memo :: Memoizer, gameState :: GameState }
+data Turn = Turn { }
 
-newTurn :: GameState -> Turn
-newTurn gs = Turn { memo = Memoizer
-                  , gameState = gs
-                  }
+newTurn :: Turn
+newTurn = Turn { 
+               }
 
 type T = State Turn
 
@@ -41,9 +39,7 @@ applyOrders w ants (order:os) =
 createFuture :: GameState -> [Order] -> GameState
 createFuture gs os =
   let newAnts = applyOrders (world gs) (ants gs) os
-      os' = orders gs
-  in gs { orders = os ++ os'
-        , ants = newAnts
+  in gs { ants = newAnts
         }
 
 moveable :: Ant -> Bool
@@ -76,33 +72,39 @@ clockwiseStrategy' = circularStrategy [South, East, North, West]
 counterClockwiseStrategy = circularStrategy [West, South, East, North]
 counterClockwiseStrategy' = circularStrategy [East, South, West, North]
 
-evaluate :: Memoizer -> GameState -> Int
-evaluate mem gs =
+mShortestPath :: GameParams -> World -> Point -> Point -> T (Maybe [Point])
+mShortestPath = shortestPath
+
+distance' :: GameParams -> World -> Point -> Point -> T Int
+distance' gp w p1 p2 = case mShortestPath gp w p1 p2 of
+                          Nothing -> 100
+                          Just path -> length path
+
+evaluate :: GameParams -> GameState -> T Int
+evaluate gp gs = do
   let numAnts = length $ ants gs
-      distances = [distance' mem food (point ant) | food <- (food gs), ant <- (myAnts $ ants gs)]
+      w = world gs
+      distances = [distance' gp w food (point ant) | food <- (food gs), ant <- (myAnts $ ants gs)]
       shortestDistance = if null distances then
                            0
                          else
                            head $ sort distances
       sumDistances = foldr (+) 0 distances
-  in numAnts - sumDistances - (shortestDistance * 5)
+  return $ numAnts - sumDistances - (shortestDistance * 5)
 
-doEverything :: GameParams -> T [Order]
-doEverything gp = do
-  turn <- get
-  -- generate orders for all ants belonging to me
-  let gs = gameState turn
-      futures = map (\s -> s gs) [counterClockwiseStrategy, clockwiseStrategy, clockwiseStrategy', counterClockwiseStrategy']
-      evaluations = sortBy (comparing (((-1) *) . fst)) [(evaluate memoizer f, f) | f <- futures]
+doEverything :: GameParams -> GameState -> T [Order]
+doEverything gp gs = do
+  let futures = map (\s -> s gs) [counterClockwiseStrategy, clockwiseStrategy, clockwiseStrategy', counterClockwiseStrategy']
+      evaluations = sortBy (comparing (((-1) *) . fst)) [(evaluate gp f, f) | f <- futures]
       orders' = orders (snd (head evaluations))
   -- this shows how to check the remaining time
   --elapsedTime <- timeRemaining gs
   --hPutStrLn stderr $ show elapsedTime
   -- wrap list of orders back into a monad
-  return orders
+  return orders'
 
 doTurn :: GameParams -> GameState -> [Order]
-doTurn gp gs = evalState (doEverything gp) (newTurn gs)
+doTurn gp gs = evalState (doEverything gp gs) newTurn
 
 -- | This runs the game
 main :: IO ()

@@ -18,6 +18,7 @@ module Ants
   , enemyAnts
   , passable
   , distance
+  , shortestPath
   , timeRemaining
   , (%!)
 
@@ -42,10 +43,10 @@ import Util
 import AStar
 import qualified Data.Set as S
 
-timeRemaining :: GameState -> IO NominalDiffTime
-timeRemaining gs = do
+timeRemaining :: UTCTime -> IO NominalDiffTime
+timeRemaining timeStart = do
   timeNow <- getCurrentTime
-  return $ timeNow `diffUTCTime` startTime gs
+  return $ timeNow `diffUTCTime` timeStart
 
 --------------------------------------------------------------------------------
 -- Points ----------------------------------------------------------------------
@@ -274,7 +275,7 @@ data GameState = GameState
   { world :: World
   , ants :: [Ant] -- call "ants GameState" to all ants
   , food :: [Food] -- call "food GameState" to all food
-  , startTime :: UTCTime
+  , orders :: [Order]
   }
 
 data GameParams = GameParams
@@ -314,23 +315,27 @@ updateGameState vp gs s
       let p = toPoint.tail $ s
           fs' = p:food gs
           nw = writeTile (world gs) p FoodTile
-      in GameState nw (ants gs) fs' (startTime gs)
+      in gs{ world = nw
+           , food = fs'
+           }
   | "w" `isPrefixOf` s = -- add water
       let p = toPoint.tail $ s
           nw = writeTile (world gs) p Water
-      in GameState nw (ants gs) (food gs) (startTime gs)
+      in gs{ world = nw }
   | "a" `isPrefixOf` s = -- add ant
       let own = toOwner.digitToInt.last $ s
           p = toPoint.init.tail $ s
           as' = MobileAnt { point = p, owner = own}:ants gs
           nw = writeTile (world gs) p $ AntTile own
           nw' = if own == Me then addVisible nw vp p else nw
-      in GameState nw' as' (food gs) (startTime gs)
+      in gs{ world = nw'
+           , ants = as'
+           }
   | "d" `isPrefixOf` s = -- add dead ant
       let own = toOwner.digitToInt.last $ s
           p = toPoint.init.tail $ s
           nw = writeTile (world gs) p $ Dead own
-      in GameState nw (ants gs) (food gs) (startTime gs)
+      in gs{ world = nw }
   | otherwise = gs -- ignore line
   where
     toPoint :: String -> Point
@@ -385,9 +390,9 @@ gameLoop :: GameParams
 gameLoop gp doTurn w (line:input)
   | "turn" `isPrefixOf` line = do
       hPutStrLn stderr line
-      time <- getCurrentTime
+      --time <- getCurrentTime
       let cs = break (isPrefixOf "go") input
-          gs = foldl' (updateGameState $ viewCircle gp) (GameState w [] [] time) (fst cs)
+          gs = foldl' (updateGameState $ viewCircle gp) (GameState w [] [] []) (fst cs)
       mapM_ issueOrder $ doTurn gs
       finishTurn
       gameLoop gp doTurn (mapWorld clearMetaTile $ world gs) (tail $ snd cs) -- clear world for next turn
