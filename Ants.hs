@@ -6,15 +6,20 @@ module Ants
   , Direction (..)
   , GameParams (..)
   , GameState (..)
+  , MetaTile (..)
   , Order (..)
+  , Point
+  , Tile (..)
   , World
 
     -- Utility functions
+  , move
   , myAnts
   , enemyAnts
   , passable
   , distance
   , timeRemaining
+  , (%!)
 
     -- main function
   , game
@@ -35,6 +40,7 @@ import System.IO
 import Util
 
 import AStar
+import qualified Data.Set as S
 
 timeRemaining :: GameState -> IO NominalDiffTime
 timeRemaining gs = do
@@ -316,7 +322,7 @@ updateGameState vp gs s
   | "a" `isPrefixOf` s = -- add ant
       let own = toOwner.digitToInt.last $ s
           p = toPoint.init.tail $ s
-          as' = Ant { point = p, owner = own}:ants gs
+          as' = MobileAnt { point = p, owner = own}:ants gs
           nw = writeTile (world gs) p $ AntTile own
           nw' = if own == Me then addVisible nw vp p else nw
       in GameState nw' as' (food gs) (startTime gs)
