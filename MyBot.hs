@@ -82,8 +82,8 @@ distance' gp w p1 p2 = case mShortestPath gp w p1 p2 of
                           Nothing -> 100
                           Just path -> length path
 
-evaluate :: GameParams -> GameState -> Int
-evaluate gp gs =
+evaluate :: GameParams -> GameState -> T Int
+evaluate gp gs = do
   let numAnts = length $ ants gs
       w = world gs
       distances = [distance' gp w food (point ant) | food <- (food gs), ant <- (myAnts $ ants gs)]
@@ -92,13 +92,20 @@ evaluate gp gs =
                          else
                            head $ sort distances
       sumDistances = foldr (+) 0 distances
-  in numAnts - sumDistances - (shortestDistance * 5)
+  return $ numAnts - sumDistances - (shortestDistance * 5)
+
+evaluations :: GameParams -> [GameState] -> T [(Int, GameState)]
+evaluations gp gss = do
+  state <- get
+  let evals = [(evalState (evaluate gp f) state, f) | f <- gss]
+  --return (sortBy (comparing (((-1) *) . fst)) evals)
+  return evals
 
 doEverything :: GameParams -> GameState -> T [Order]
 doEverything gp gs = do
   let futures = map (\s -> s gs) [counterClockwiseStrategy, clockwiseStrategy, clockwiseStrategy', counterClockwiseStrategy']
-      evaluations = sortBy (comparing (((-1) *) . fst)) [(evaluate gp f, f) | f <- futures]
-      orders' = orders (snd (head evaluations))
+  evals <- evaluations gp futures
+  let orders' = orders (snd (head evals))
   -- this shows how to check the remaining time
   --elapsedTime <- timeRemaining gs
   --hPutStrLn stderr $ show elapsedTime
