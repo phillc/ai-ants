@@ -1,6 +1,7 @@
 module Main where
 
 import Data.List
+import qualified Data.Map as Map
 import Data.Maybe (fromJust, isNothing)
 import Data.Ord (comparing)
 import Control.Monad.State
@@ -9,10 +10,10 @@ import Data.Time.Clock
 
 import Ants
 
-data Turn = Turn { }
+data Turn = Turn { memoShortestPath :: Map.Map (Point, Point) (Maybe [Point]) }
 
 newTurn :: Turn
-newTurn = Turn { 
+newTurn = Turn { memoShortestPath = Map.empty
                }
 
 type T = State Turn
@@ -74,19 +75,36 @@ clockwiseStrategy' = circularStrategy [South, East, North, West]
 counterClockwiseStrategy = circularStrategy [West, South, East, North]
 counterClockwiseStrategy' = circularStrategy [East, South, West, North]
 
-mShortestPath :: GameParams -> World -> Point -> Point -> Maybe [Point]
-mShortestPath = shortestPath
+mShortestPath :: GameParams -> World -> Point -> Point -> T (Maybe [Point])
+mShortestPath gp w p1 p2 = do
+  let key = (p1, p2)
+  state <- get
+  let memo = memoShortestPath state
+      memoPath = Map.lookup key memo
+      path = if isNothing memoPath then
+                  shortestPath gp w p1 p2
+             else
+                  fromJust memoPath
+  put (state { memoShortestPath = (Map.insert key path memo) })
+  return path
+  --let path = shortestPath gp w p1 p2
+  --put (state { memoShortestPath = (Map.insert key path memo) })
+  --return path
 
-distance' :: GameParams -> World -> Point -> Point -> Int
-distance' gp w p1 p2 = case mShortestPath gp w p1 p2 of
-                          Nothing -> 100
-                          Just path -> length path
+distance' :: GameParams -> World -> Point -> Point -> T Int
+distance' gp w p1 p2 = do
+  path <- mShortestPath gp w p1 p2
+  let dist = case path of
+                  Nothing -> 100
+                  Just path -> length path
+  return dist
 
 evaluate :: GameParams -> GameState -> T Int
 evaluate gp gs = do
+  state <- get
   let numAnts = length $ ants gs
       w = world gs
-      distances = [distance' gp w food (point ant) | food <- (food gs), ant <- (myAnts $ ants gs)]
+      distances = [evalState (distance' gp w food (point ant)) state | food <- (food gs), ant <- (myAnts $ ants gs)]
       shortestDistance = if null distances then
                            0
                          else
@@ -98,8 +116,7 @@ evaluations :: GameParams -> [GameState] -> T [(Int, GameState)]
 evaluations gp gss = do
   state <- get
   let evals = [(evalState (evaluate gp f) state, f) | f <- gss]
-  --return (sortBy (comparing (((-1) *) . fst)) evals)
-  return evals
+  return (sortBy (comparing (((-1) *) . fst)) evals)
 
 doEverything :: GameParams -> GameState -> T [Order]
 doEverything gp gs = do
