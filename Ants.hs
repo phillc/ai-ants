@@ -4,6 +4,7 @@ module Ants
     Owner (..)
   , Ant (..)
   , Direction (..)
+  , Food
   , GameParams (..)
   , GameState (..)
   , MetaTile (..)
@@ -13,13 +14,12 @@ module Ants
   , World
 
     -- Utility functions
+  , directionOf
   , move
-  , myAnts
-  , enemyAnts
+  , myMobileAnts
   , passable
   , distance
   , shortestPath
-  , timeRemaining
   , (%!)
 
     -- main function
@@ -218,13 +218,12 @@ data Ant
     = MobileAnt { point :: Point , owner :: Owner }
     | ImmobileAnt { point :: Point , owner :: Owner } deriving (Show, Eq)
 
-isMe, isEnemy :: Ant -> Bool
-isMe = (==Me).owner
-isEnemy = not.isMe
+isMobile :: Ant -> Bool
+isMobile (MobileAnt _ _) = True
+isMobile _ = False
 
-myAnts, enemyAnts :: [Ant] -> [Ant]
-myAnts = filter isMe
-enemyAnts = filter isEnemy
+myMobileAnts :: GameState -> [Ant]
+myMobileAnts gs = filter isMobile (myAnts gs)
 
 --------------------------------------------------------------------------------
 -- Orders ----------------------------------------------------------------------
@@ -248,6 +247,14 @@ move dir p
   | dir == South = (row p + 1, col p)
   | dir == West  = (row p, col p - 1)
   | otherwise    = (row p, col p + 1)
+
+directionOf :: Ant -> Point -> Direction
+directionOf a p
+  | p == (row location - 1, col location) = North
+  | p == (row location + 1, col location) = South
+  | p == (row location, col location - 1) = West
+  | p == (row location, col location + 1) = East
+  where location = point a
 
 passable :: World -> Order -> Bool
 passable w order =
@@ -273,9 +280,9 @@ type Food = Point
 
 data GameState = GameState
   { world :: World
-  , ants :: [Ant] -- call "ants GameState" to all ants
-  , food :: [Food] -- call "food GameState" to all food
-  , orders :: [Order]
+  , myAnts :: [Ant]
+  , enemyAnts :: [Ant]
+  , food :: [Food]
   }
 
 data GameParams = GameParams
@@ -325,12 +332,12 @@ updateGameState vp gs s
   | "a" `isPrefixOf` s = -- add ant
       let own = toOwner.digitToInt.last $ s
           p = toPoint.init.tail $ s
-          as' = MobileAnt { point = p, owner = own}:ants gs
+          newAnt = MobileAnt { point = p, owner = own}
           nw = writeTile (world gs) p $ AntTile own
           nw' = if own == Me then addVisible nw vp p else nw
-      in gs{ world = nw'
-           , ants = as'
-           }
+      in if own == Me
+           then gs{ world = nw' , myAnts = newAnt:(myAnts gs) }
+           else gs{ world = nw' , enemyAnts = newAnt:(enemyAnts gs) }
   | "d" `isPrefixOf` s = -- add dead ant
       let own = toOwner.digitToInt.last $ s
           p = toPoint.init.tail $ s
@@ -382,7 +389,7 @@ mapWorld f w = runSTArray $ do
   mapM_ (modifyWorld mw f) (indices w)
   return mw
 
-gameLoop :: GameParams 
+gameLoop :: GameParams
          -> (GameState -> [Order])
          -> World
          -> [String] -- input
@@ -390,10 +397,14 @@ gameLoop :: GameParams
 gameLoop gp doTurn w (line:input)
   | "turn" `isPrefixOf` line = do
       hPutStrLn stderr line
-      --time <- getCurrentTime
+      time <- getCurrentTime
       let cs = break (isPrefixOf "go") input
           gs = foldl' (updateGameState $ viewCircle gp) (GameState w [] [] []) (fst cs)
       mapM_ issueOrder $ doTurn gs
+
+      elapsedTime <- timeRemaining time
+      hPutStrLn stderr $ show elapsedTime
+
       finishTurn
       gameLoop gp doTurn (mapWorld clearMetaTile $ world gs) (tail $ snd cs) -- clear world for next turn
   | "end" `isPrefixOf` line = endGame input
@@ -417,7 +428,7 @@ endGame input = do
 -- | Tell engine that we have finished the turn or setting up.
 finishTurn :: IO ()
 finishTurn = do
-  putStrLn "go" 
+  putStrLn "go"
   hFlush stdout
 
 -- vim: set expandtab:

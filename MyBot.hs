@@ -2,21 +2,14 @@ module Main where
 
 import Data.List
 import qualified Data.Map as Map
-import Data.Maybe (fromJust, isNothing)
+import Data.Maybe (fromJust, isNothing, isJust, fromMaybe)
 import Data.Ord (comparing)
 import Control.Monad.State
 import System.IO
 import Data.Time.Clock
-
 import Ants
 
-data Turn = Turn { memoShortestPath :: Map.Map (Point, Point) (Maybe [Point]) }
-
-newTurn :: Turn
-newTurn = Turn { memoShortestPath = Map.empty
-               }
-
-type T = State Turn
+type GS = State GameState
 
 simulateOrder :: Order -> Point
 simulateOrder order = move (direction order) (point $ ant order)
@@ -25,115 +18,86 @@ instance Show GameState where
   show (GameState _ a f o ) = show (a, f, o)
   --show (GameState w a f o) = show ((renderWorld w), a, f, o)
 
-applyOrders :: World -> [Ant] -> [Order] -> [Ant]
-applyOrders w ants [] = ants
-applyOrders w ants (order:os) =
-  let oldAnt = ant order
-      newAnt = ImmobileAnt (simulateOrder order) (owner oldAnt)
-      createdAnts = if tile (w %! (point newAnt)) == FoodTile then
-                      [ImmobileAnt (point oldAnt) (owner oldAnt)]
-                    else
-                      []
-      otherAnts = filter (/= oldAnt) ants
-  in createdAnts ++ [newAnt] ++ (applyOrders w otherAnts os)
-
-createFuture :: GameState -> [Order] -> GameState
-createFuture gs os =
-  let newAnts = applyOrders (world gs) (ants gs) os
-      os' = orders gs
-  in gs { orders = os ++ os'
-        , ants = newAnts
-        }
-
 moveable :: Ant -> Bool
 moveable (MobileAnt _ _) = True
 moveable _ = False
 
 unoccupied :: GameState -> Point -> Bool
-unoccupied gs p = not $ any (== p) (map point $ myAnts $ ants gs)
+unoccupied gs p = not $ any (== p) (map point $ myAnts gs)
 
 approachable :: GameState -> Order -> Bool
 approachable gs order = (passable (world gs) order) && (unoccupied gs (simulateOrder order))
 
-circularStrategy :: [Direction] -> GameState -> GameState
-circularStrategy directions gs
-  | null ants' = createFuture gs []
-  | null moveableAnts = createFuture gs []
-  | otherwise =
-      let theAnt = head $ moveableAnts
-          generatedOrders = map (Order theAnt) directions
-          order = find (approachable gs) generatedOrders
-      in if isNothing order then
-           circularStrategy directions (gs{ants = (ImmobileAnt (point theAnt) (owner theAnt) : (tail moveableAnts))})
-         else
-           circularStrategy directions (createFuture gs [fromJust order])
-  where ants' = myAnts $ ants gs
-        moveableAnts = filter moveable ants'
+distance' :: GameParams -> World -> Point -> Point -> Int
+distance' gp w p1 p2 = case shortestPath gp w p1 p2 of
+                         Nothing -> 100
+                         Just path -> length path
 
-clockwiseStrategy = circularStrategy [North, East, South, West]
-clockwiseStrategy' = circularStrategy [South, East, North, West]
-counterClockwiseStrategy = circularStrategy [West, South, East, North]
-counterClockwiseStrategy' = circularStrategy [East, South, West, North]
+horizon = 4
 
-mShortestPath :: GameParams -> World -> Point -> Point -> T (Maybe [Point])
-mShortestPath gp w p1 p2 = do
-  let key = (p1, p2)
+moveAnt :: Ant -> Direction -> GS [Order]
+moveAnt ant direction = do
   state <- get
-  let memo = memoShortestPath state
-      memoPath = Map.lookup key memo
-      path = if isNothing memoPath then
-                  shortestPath gp w p1 p2
-             else
-                  fromJust memoPath
-  put (state { memoShortestPath = (Map.insert key path memo) })
-  return path
-  --let path = shortestPath gp w p1 p2
-  --put (state { memoShortestPath = (Map.insert key path memo) })
-  --return path
+  let myAnts' = myAnts state
+      otherAnts = delete ant myAnts'
+  put state{myAnts = (ImmobileAnt (move direction (point ant)) (owner ant)) : otherAnts}
+  return [Order ant direction]
 
-distance' :: GameParams -> World -> Point -> Point -> T Int
-distance' gp w p1 p2 = do
-  path <- mShortestPath gp w p1 p2
-  let dist = case path of
-                  Nothing -> 100
-                  Just path -> length path
-  return dist
-
-evaluate :: GameParams -> GameState -> T Int
-evaluate gp gs = do
+immobilizeAnt :: Ant -> GS [Order]
+immobilizeAnt a@(MobileAnt p o) = do
   state <- get
-  let numAnts = length $ ants gs
-      w = world gs
-      distances = [evalState (distance' gp w food (point ant)) state | food <- (food gs), ant <- (myAnts $ ants gs)]
-      shortestDistance = if null distances then
-                           0
-                         else
-                           head $ sort distances
-      sumDistances = foldr (+) 0 distances
-  return $ numAnts - sumDistances - (shortestDistance * 5)
+  let myAnts' = myAnts state
+      otherAnts = delete a myAnts'
+  put state{myAnts = ((ImmobileAnt p o) : otherAnts)}
+  return []
 
-evaluations :: GameParams -> [GameState] -> T [(Int, GameState)]
-evaluations gp gss = do
+
+sendClosestAnt :: GameParams -> [Food] -> GS [Order]
+sendClosestAnt gp fs = do
   state <- get
-  let evals = [(evalState (evaluate gp f) state, f) | f <- gss]
-  return (sortBy (comparing (((-1) *) . fst)) evals)
+  let w = world state
+      paths = foldl (\ps p -> case fst p of
+                                Nothing -> ps
+                                Just ss -> (ss, snd p):ps)
+                    []
+                    [(shortestPath gp w (point ant) f, (ant, f)) | ant <- myMobileAnts state, f <- food state]
+      shortestPaths = sortBy (comparing (((-1) *) . length . fst)) paths
+  orders <- sendClosestAnt' shortestPaths
+  return orders
+  where
+    sendClosestAnt' :: [([Point], (Ant, Food))] -> GS [Order]
+    sendClosestAnt' paths
+      | null paths = do
+          return []
+      | otherwise = do
+          state <- get
+          let shortestDistance = head paths
+              path = fst shortestDistance
+              moveAntTo = head path
+              ant = fst $ snd shortestDistance
+              f = snd $ snd shortestDistance
+              remainingFood = delete f fs
+          orders <- if unoccupied state moveAntTo then ((moveAnt ant (directionOf ant moveAntTo))) else immobilizeAnt ant
+          remainingOrders <- (sendClosestAnt gp remainingFood)
+          return $ orders ++ remainingOrders
 
-doEverything :: GameParams -> GameState -> T [Order]
-doEverything gp gs = do
-  let futures = map (\s -> s gs) [counterClockwiseStrategy, clockwiseStrategy, clockwiseStrategy', counterClockwiseStrategy']
-  evals <- evaluations gp futures
-  let orders' = orders (snd (head evals))
-  -- this shows how to check the remaining time
-  --elapsedTime <- timeRemaining gs
-  --hPutStrLn stderr $ show elapsedTime
-  -- wrap list of orders back into a monad
-  return orders'
+attackFood :: GameParams -> GS [Order]
+attackFood gp = do
+  state <- get
+  sendClosestAnt gp (food state)
+
+doEverything :: GameParams -> GS [Order]
+doEverything gp = do
+  --orders1 <- attack
+  orders2 <- attackFood gp --minimax food
+  --spreadOut
+
+  return orders2
 
 doTurn :: GameParams -> GameState -> [Order]
-doTurn gp gs = evalState (doEverything gp gs) newTurn
+doTurn gp gs = evalState (doEverything gp) gs
 
 -- | This runs the game
 main :: IO ()
 main = game doTurn
 
--- vim: set expandtab:
