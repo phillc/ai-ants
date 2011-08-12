@@ -114,13 +114,14 @@ spreadOut gp gen = do
   orders <- liftM concat $ mapM moveAway ants'
   return orders
   where
-    radius = 150
+    radius = 100
     moveAway :: Ant -> GS [Order]
     moveAway movingAnt = do
       state <- get
       allAnts <- gets myAnts
       let location = point movingAnt
           antsAroundAnt = antsAroundPoint radius location allAnts
+          -- If this took into consideration # of land/water tiles, number of unknown tiles, perhaps we can spread out even more optimally
           counts = [ (length $ filter (\a -> row (point a) < row location) antsAroundAnt, South)
                    , (length $ filter (\a -> row (point a) > row location) antsAroundAnt, North)
                    , (length $ filter (\a -> col (point a) > col location) antsAroundAnt, West)
@@ -130,14 +131,39 @@ spreadOut gp gen = do
           decision = find (\cs -> occupiable state (move (snd cs) location)) (reverse $ sortBy (comparing fst) counts')
       if isJust decision then moveOrImmobilizeAnt movingAnt (snd (fromJust decision)) else immobilizeAnt movingAnt
 
+avoidEnemies :: GameParams -> StdGen -> GS [Order]
+avoidEnemies gp gen = do
+  ants' <- gets myMobileAnts
+  orders <- liftM concat $ mapM moveAway ants'
+  return orders
+  where
+    radius = 17
+    moveAway :: Ant -> GS [Order]
+    moveAway movingAnt = do
+      state <- get
+      allAnts <- gets enemyAnts
+      let location = point movingAnt
+          antsAroundAnt = antsAroundPoint radius location allAnts
+          -- If this took into consideration # of land/water tiles, number of unknown tiles, perhaps we can spread out even more optimally
+          counts = [ (length $ filter (\a -> row (point a) < row location) antsAroundAnt, South)
+                   , (length $ filter (\a -> row (point a) > row location) antsAroundAnt, North)
+                   , (length $ filter (\a -> col (point a) > col location) antsAroundAnt, West)
+                   , (length $ filter (\a -> col (point a) < col location) antsAroundAnt, East)
+                   ]
+          counts' = unsort gen $ filter ((>0) . fst) counts
+          decision = find (\cs -> occupiable state (move (snd cs) location)) (reverse $ sortBy (comparing fst) counts')
+      if isJust decision then moveOrImmobilizeAnt movingAnt (snd (fromJust decision)) else return []
+
 doEverything :: GameParams -> StdGen -> GS [Order]
 doEverything gp gen = do
   --orders1 <- attack
+  -- orders1 <- handle 2v1
+  orders1 <- avoidEnemies gp gen
   -- group ants
   orders2 <- attackFood gp --minimax food
   orders3 <- spreadOut gp gen
 
-  return $ orders2 ++ orders3
+  return $ orders1 ++ orders2 ++ orders3
 
 doTurn :: GameParams -> GameState -> IO [Order]
 doTurn gp gs = do
