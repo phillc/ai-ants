@@ -18,7 +18,7 @@ This implementation is due to Ralf Hinze.
 -- Some modifications by Scott Dillard
 
 
-module PSQueue
+module Data.PSQueue
     ( 
     -- * Binding Type
     Binding((:->))

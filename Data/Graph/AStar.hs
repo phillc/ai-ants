@@ -1,11 +1,11 @@
-module AStar (aStar,aStarM) where
+module Data.Graph.AStar (aStar,aStarM) where
 
 import qualified Data.Set as Set
 import Data.Set (Set, (\\))
 import qualified Data.Map as Map
 import Data.Map (Map, (!))
-import qualified PSQueue as PSQ
-import PSQueue (PSQ, Binding(..), minView)
+import qualified Data.PSQueue as PSQ
+import Data.PSQueue (PSQ, Binding(..), minView)
 import Data.List (foldl')
 import Control.Monad (foldM)
 

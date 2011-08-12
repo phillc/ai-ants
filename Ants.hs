@@ -22,6 +22,12 @@ module Ants
   , shortestPath
   , (%!)
 
+  , col
+  , row
+
+  , getPointCircle
+  , sumPoint
+
     -- main function
   , game
   ) where
@@ -40,7 +46,7 @@ import System.IO
 
 import Util
 
-import AStar
+import Data.Graph.AStar
 import qualified Data.Set as S
 
 timeRemaining :: UTCTime -> IO NominalDiffTime
@@ -161,7 +167,7 @@ renderWorld w = concatMap renderAssoc (assocs w)
 --------------------------------------------------------------------------------
 modDistance :: Int -- modulus
             -> Int -> Int -> Int
-modDistance m x y = 
+modDistance m x y =
   let a = abs $ x - y
   in min a (m - a)
 
@@ -248,12 +254,12 @@ move dir p
   | dir == West  = (row p, col p - 1)
   | otherwise    = (row p, col p + 1)
 
-directionOf :: Ant -> Point -> Direction
-directionOf a p
-  | p == (row location - 1, col location) = North
-  | p == (row location + 1, col location) = South
-  | p == (row location, col location - 1) = West
-  | p == (row location, col location + 1) = East
+directionOf :: World -> Ant -> Point -> Direction
+directionOf w a p
+  | p == w %!% (row location - 1, col location)     = North
+  | p == w %!% (row location + 1, col location)     = South
+  | p == w %!% (row location,     col location - 1) = West
+  | p == w %!% (row location,     col location + 1) = East
   where location = point a
 
 passable :: World -> Order -> Bool
@@ -390,7 +396,7 @@ mapWorld f w = runSTArray $ do
   return mw
 
 gameLoop :: GameParams
-         -> (GameState -> [Order])
+         -> (GameState -> IO [Order])
          -> World
          -> [String] -- input
          -> IO ()
@@ -400,18 +406,20 @@ gameLoop gp doTurn w (line:input)
       time <- getCurrentTime
       let cs = break (isPrefixOf "go") input
           gs = foldl' (updateGameState $ viewCircle gp) (GameState w [] [] []) (fst cs)
-      mapM_ issueOrder $ doTurn gs
+
+      orders <- doTurn gs
+      mapM_ issueOrder orders
+      finishTurn
 
       elapsedTime <- timeRemaining time
       hPutStrLn stderr $ show elapsedTime
 
-      finishTurn
       gameLoop gp doTurn (mapWorld clearMetaTile $ world gs) (tail $ snd cs) -- clear world for next turn
   | "end" `isPrefixOf` line = endGame input
   | otherwise = gameLoop gp doTurn w input
 gameLoop _ _ _ [] = endGame []
 
-game :: (GameParams -> GameState -> [Order]) -> IO ()
+game :: (GameParams -> GameState -> IO [Order]) -> IO ()
 game doTurn = do
   content <- getContents
   let cs = break (isPrefixOf "ready") $ lines content

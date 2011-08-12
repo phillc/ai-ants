@@ -17,9 +17,7 @@ end
 
 desc "make"
 task :make do
-  `rm -rf staging/*`
-  `mkdir -p staging/contest_package`
-  `cp #{PROJECT_DIR}/*.hs staging/contest_package`
-  `cd staging && zip -j -r contest_package.zip contest_package && rm -rf contest_package`
+  `rm contest_package.zip`
+  `zip -r contest_package.zip **/**/*.hs **/*.hs *.hs`
 end
 
