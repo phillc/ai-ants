@@ -18,6 +18,7 @@ end
 desc "make"
 task :make do
   `rm contest_package.zip`
-  `zip -r contest_package.zip **/**/*.hs **/*.hs *.hs`
+  `zip -r contest_package.zip **/**/**/*.hs **/**/*.hs **/*.hs *.hs`
+  puts "done"
 end
 
