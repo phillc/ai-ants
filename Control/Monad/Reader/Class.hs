@@ -1,5 +1,5 @@
 {-# LANGUAGE TypeFamilies #-}
-{-# OPTIONS -fallow-undecidable-instances #-}
+{-# LANGUAGE UndecidableInstances#-}
 {- |
 Module      :  Control.Monad.Reader.Class
 Copyright   :  (c) Andy Gill 2001,

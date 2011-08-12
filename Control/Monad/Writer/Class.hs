@@ -1,5 +1,5 @@
 {-# LANGUAGE TypeFamilies, FlexibleContexts #-}
-{-# OPTIONS -fallow-undecidable-instances #-}
+{-# LANGUAGE UndecidableInstances#-}
 -- Search for -fallow-undecidable-instances to see why this is needed
 
 -----------------------------------------------------------------------------
