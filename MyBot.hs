@@ -67,11 +67,12 @@ sendClosestAnt :: GameParams -> [Food] -> GS [Order]
 sendClosestAnt gp fs = do
   state <- get
   let w = world state
+      radius = 100
       paths = foldl (\ps p -> case fst p of
                                 Nothing -> ps
                                 Just ss -> (ss, snd p):ps)
                     []
-                    [(shortestPath gp w (point ant) f, (ant, f)) | ant <- myMobileAnts state, f <- fs]
+                    $ concatMap (\f -> [(shortestPath gp w (point ant) f, (ant, f)) | ant <- antsAroundPoint radius f (myMobileAnts state)]) fs
       shortestPaths = sortBy (comparing (length . fst)) paths
   orders <- sendClosestAnt' shortestPaths
   return orders
@@ -99,20 +100,27 @@ attackFood gp = do
   state <- get
   sendClosestAnt gp (food state)
 
+antsAroundPoint :: Int -> Point -> [Ant] -> [Ant]
+antsAroundPoint radius location allAnts =
+  let pointsAroundAnt = pointsAroundPoint radius location
+  in filter (\a -> point a `elem` pointsAroundAnt) allAnts
+
+pointsAroundPoint :: Int -> Point -> [Point]
+pointsAroundPoint radius location = map (sumPoint location) $ getPointCircle radius
+
 spreadOut :: GameParams -> StdGen -> GS [Order]
 spreadOut gp gen = do
   ants' <- gets myMobileAnts
   orders <- liftM concat $ mapM moveAway ants'
   return orders
   where
-    radius = getPointCircle 150
+    radius = 150
     moveAway :: Ant -> GS [Order]
     moveAway movingAnt = do
       state <- get
       allAnts <- gets myAnts
       let location = point movingAnt
-          pointsAroundAnt = map (sumPoint $ location) radius
-          antsAroundAnt = filter (\a -> point a `elem` pointsAroundAnt) allAnts
+          antsAroundAnt = antsAroundPoint radius location allAnts
           counts = [ (length $ filter (\a -> row (point a) < row location) antsAroundAnt, South)
                    , (length $ filter (\a -> row (point a) > row location) antsAroundAnt, North)
                    , (length $ filter (\a -> col (point a) > col location) antsAroundAnt, West)
